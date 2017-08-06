@@ -160,6 +160,51 @@ def run_module():
     except:
         module.fail_json(msg='Could not connect to ServiceNow', **result)
 
+
+    # Deal with check mode
+    if module.check_mode:
+
+        # if we are in check mode and have no number, we would have created
+        # a record.  We can only partially simulate this
+        if module.params['number'] is None:
+            result['record'] = dict(module.params['data'])
+            result['changed'] = True
+
+        # do we want to check if the record is non-existent?
+        elif module.params['state'] == 'absent':
+            try:
+                record = conn.query(table=module.params['table'],
+                                    query={'number' : module.params['number']})
+                res = record.get_one()
+                result['record'] = dict(Success=True)
+                result['changed'] = True
+            except pysnow.exceptions.NoResults:
+                result['record'] = None
+            except:
+                module.fail_json(msg="Unknown failure in query record",
+                                 **result)
+
+        # Let's simulate modification
+        else:
+            try:
+                record = conn.query(table=module.params['table'],
+                                    query={'number' : module.params['number']})
+                res = record.get_one()
+                for key, value in module.params['data'].items():
+                    res[key] = value
+                    result['changed'] = True
+                result['record'] = res
+            except pysnow.exceptions.NoResults:
+                snow_error = "Record does not exist"
+                module.fail_json(msg=snow_error, **result)
+            except:
+                module.fail_json(msg="Unknown failure in query record",
+                                 **result)
+        module.exit_json(**result)
+
+
+    # now for the real thing: (non-check mode)
+        
     # are we creating a new record? 
     if module.params['state'] == 'present' and module.params['number'] is None:
         try:
@@ -169,6 +214,7 @@ def run_module():
             snow_error = "Failed to create record: %s, details: %s" % (e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
         result['record'] = record
+        result['changed'] = True
 
     # we are deleting a record
     elif module.params['state'] == 'absent':
@@ -177,8 +223,7 @@ def run_module():
                                 query={'number' : module.params['number']})
             res = record.delete()
         except pysnow.exceptions.NoResults:
-            snow_error = "Record does not exist"
-            module.fail_json(msg=snow_error, **result)
+            res = dict(Success=True)
         except pysnow.UnexpectedResponse as e:
             snow_error = "Failed to delete record: %s, details: %s" % (e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
@@ -186,6 +231,7 @@ def run_module():
             snow_error = "Failed to delete record"
             module.fail_json(msg=snow_error, **result)
         result['record'] = res
+        result['changed'] = True
 
     # We want to update a record
     else:
@@ -194,6 +240,7 @@ def run_module():
                                 query={'number' : module.params['number']})
             res = record.update(dict(module.params['data']))
             result['record'] = res
+            result['changed'] = True
         except pysnow.exceptions.NoResults:
             snow_error = "Record does not exist"
             module.fail_json(msg=snow_error, **result)
