@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 ANSIBLE_METADATA = {
@@ -46,6 +47,9 @@ options:
 	    - Fields of the record to return in the json
         required: false
         default: all fields
+
+requirements:
+    - python pysnow (pysnow)
 
 author:
     - Tim Rightnour (@garbled1)

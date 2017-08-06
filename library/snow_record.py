@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 ANSIBLE_METADATA = {
@@ -55,6 +56,9 @@ options:
 	    - Record number to update. Required for
 	      C(state:updated) or C(state:absent)
         required: false
+
+requirements:
+    - python pysnow (pysnow)
 
 author:
     - Tim Rightnour (@garbled1)
