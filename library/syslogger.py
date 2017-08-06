@@ -33,12 +33,12 @@ options:
         default: "info"
     facility:
         description:
-	    - Set the log facility
-	choices: [ "kern", "user", "mail", "daemon", "auth", "lpr", "news",
+            - Set the log facility
+        choices: [ "kern", "user", "mail", "daemon", "auth", "lpr", "news",
                    "uucp", "cron", "syslog", "local0", "local1", "local2",
                    "local3", "local4", "local5", "local6", "local7" ]
-	required: false
-	default: "daemon"
+        required: false
+        default: "daemon"
     log_pid:
         description:
             - Log the pid in brackets
