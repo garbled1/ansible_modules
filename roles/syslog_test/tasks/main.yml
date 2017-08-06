@@ -1,0 +1,6 @@
+- name: Test syslog
+  syslogger:
+    msg: "Hello from ansible"
+    priority: "err"
+    facility: "daemon"
+    log_pid: true
