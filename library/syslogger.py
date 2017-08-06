@@ -2,6 +2,9 @@
 # Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 ANSIBLE_METADATA = {
     'metadata_version': '1.0',
     'status': ['preview'],
@@ -72,39 +75,42 @@ RETURN = '''
 from ansible.module_utils.basic import AnsibleModule
 import syslog
 
+
 def get_facility(x):
     return {
-        'kern' : syslog.LOG_KERN,
-        'user' : syslog.LOG_USER,
-        'mail' : syslog.LOG_MAIL,
-        'daemon' : syslog.LOG_DAEMON,
-        'auth' : syslog.LOG_AUTH,
-        'lpr' : syslog.LOG_LPR,
-        'news' : syslog.LOG_NEWS,
-        'uucp' : syslog.LOG_UUCP,
-        'cron' : syslog.LOG_CRON,
-        'syslog' : syslog.LOG_SYSLOG,
-        'local0' : syslog.LOG_LOCAL0,
-        'local1' : syslog.LOG_LOCAL1,
-        'local2' : syslog.LOG_LOCAL2,
-        'local3' : syslog.LOG_LOCAL3,
-        'local4' : syslog.LOG_LOCAL4,
-        'local5' : syslog.LOG_LOCAL5,
-        'local6' : syslog.LOG_LOCAL6,
-        'local7' : syslog.LOG_LOCAL7
+        'kern': syslog.LOG_KERN,
+        'user': syslog.LOG_USER,
+        'mail': syslog.LOG_MAIL,
+        'daemon': syslog.LOG_DAEMON,
+        'auth': syslog.LOG_AUTH,
+        'lpr': syslog.LOG_LPR,
+        'news': syslog.LOG_NEWS,
+        'uucp': syslog.LOG_UUCP,
+        'cron': syslog.LOG_CRON,
+        'syslog': syslog.LOG_SYSLOG,
+        'local0': syslog.LOG_LOCAL0,
+        'local1': syslog.LOG_LOCAL1,
+        'local2': syslog.LOG_LOCAL2,
+        'local3': syslog.LOG_LOCAL3,
+        'local4': syslog.LOG_LOCAL4,
+        'local5': syslog.LOG_LOCAL5,
+        'local6': syslog.LOG_LOCAL6,
+        'local7': syslog.LOG_LOCAL7
     }.get(x, syslog.LOG_DAEMON)
+
 
 def get_priority(x):
     return {
-        'emerg' : syslog.LOG_EMERG,
-        'alert' : syslog.LOG_ALERT,
-        'crit' : syslog.LOG_CRIT,
-        'err' : syslog.LOG_ERR,
-        'warning' : syslog.LOG_WARNING,
-        'notice' : syslog.LOG_NOTICE,
-        'info' : syslog.LOG_INFO,
-        'debug' : syslog.LOG_DEBUG
+        'emerg': syslog.LOG_EMERG,
+        'alert': syslog.LOG_ALERT,
+        'crit': syslog.LOG_CRIT,
+        'err': syslog.LOG_ERR,
+        'warning': syslog.LOG_WARNING,
+        'notice': syslog.LOG_NOTICE,
+        'info': syslog.LOG_INFO,
+        'debug': syslog.LOG_DEBUG
     }.get(x, syslog.LOG_INFO)
+
 
 def run_module():
     # define the available arguments/parameters that a user can pass to
@@ -112,14 +118,14 @@ def run_module():
     module_args = dict(
         msg=dict(type='str', required=True),
         priority=dict(type='str', required=False,
-                      choices=[ "emerg", "alert", "crit", "err", "warning",
-                                "notice", "info", "debug" ],
+                      choices=["emerg", "alert", "crit", "err", "warning",
+                               "notice", "info", "debug"],
                       default='info'),
         facility=dict(type='str', required=False,
-                      choices=[ "kern", "user", "mail", "daemon", "auth",
-                                "lpr", "news", "uucp", "cron", "syslog",
-                                "local0", "local1", "local2", "local3",
-                                "local4", "local5", "local6", "local7" ],
+                      choices=["kern", "user", "mail", "daemon", "auth",
+                               "lpr", "news", "uucp", "cron", "syslog",
+                               "local0", "local1", "local2", "local3",
+                               "local4", "local5", "local6", "local7"],
                       default='daemon'),
         log_pid=dict(type='bool', required=False, default=False)
     )
@@ -159,6 +165,7 @@ def run_module():
         module.fail_json(error='Failed to write to syslog', **result)
 
     module.exit_json(**result)
+
 
 def main():
     run_module()
