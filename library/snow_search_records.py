@@ -2,6 +2,9 @@
 # Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 ANSIBLE_METADATA = {
     'metadata_version': '1.0',
     'status': ['preview'],
@@ -22,24 +25,24 @@ description:
 
 options:
     instance:
-	description:
+        description:
             - The service now instance name
         required: true
     username:
-	description:
+        description:
             - User to connect to ServiceNow as
         required: true
     password:
-	description:
+        description:
             - Password for username
         required: true
     table:
-	description:
+        description:
             - Table to query for records
         required: false
         default: incident
     query_field:
-	description:
+        description:
             - Field to query for records
         required: true
     query_string:
@@ -58,8 +61,8 @@ options:
         default: "-created_on"
         required: false
     return_fields:
-	description:
-	    - Fields of the record to return in the json
+        description:
+            - Fields of the record to return in the json
         required: false
         default: all fields
 

@@ -3,4 +3,5 @@
   connection: local
   gather_facts: false
   roles:
-    - syslog_test
+    #- syslog_test
+    - snow_record_test

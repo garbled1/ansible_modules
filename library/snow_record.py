@@ -2,6 +2,9 @@
 # Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
+from __future__ import absolute_import, division, print_function
+__metaclass__ = type
+
 ANSIBLE_METADATA = {
     'metadata_version': '1.0',
     'status': ['preview'],
@@ -21,40 +24,49 @@ description:
 
 options:
     instance:
-	description:
+        description:
             - The service now instance name
         required: true
     username:
-	description:
+        description:
             - User to connect to ServiceNow as
         required: true
     password:
-	description:
+        description:
             - Password for username
         required: true
     table:
-	description:
+        description:
             - Table to query for records
         required: false
         default: incident
     state:
-	description:
-	    - If C(present) or C(updated) is supplied with a C(number)
-	      argument, the module will attempt to update the record with
+        description:
+            - If C(present) or C(updated) is supplied with a C(number)
+              argument, the module will attempt to update the record with
               the supplied data.  If no such record exists, a new one will
               be created.  C(absent) will delete a record.
-	choices: [ present, absent, updated ]
+        choices: [ present, absent, updated ]
         default: updated
-	required: true
+        required: true
     data:
         description:
             - key, value pairs of data to load into the record.
               See Examples. Required for
-	      C(state:updated) or C(state:present)
+              C(state:updated) or C(state:present)
     number:
-	description:
-	    - Record number to update. Required for
-	      C(state:updated) or C(state:absent)
+        description:
+            - Record number to update. Required for
+              C(state:updated) or C(state:absent)
+        required: false
+    lookup_field:
+        description:
+            - Changes the field that C(number) uses to find records
+        required: false
+        default: number
+    attachment:
+        description:
+            - Attach a file to the record
         required: false
 
 requirements:
@@ -103,7 +115,11 @@ record:
    type: dict
 '''
 
+import os
+
 from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils._text import to_bytes, to_native
+
 # Pull in pysnow
 HAS_PYSNOW=False
 try:
@@ -126,13 +142,14 @@ def run_module():
                    type='str', required=True),
         number=dict(default=None, required=False, type='str'),
         data=dict(default=None, requried=False, type='dict'),
+        lookup_field=dict(default='number', required=False, type='str'),
+        attachment=dict(default=None, required=False, type='str')
     )
-    module_required_if = [
-        [ 'state', 'updated', [ 'number', 'data' ] ],
-        [ 'state', 'absent', [ 'number' ] ],
-        [ 'state', 'present', [ 'data' ] ]
+    module_required_if=[
+        ['state', 'updated', ['number']],
+        ['state', 'absent', ['number']],
     ]
-   
+
     module = AnsibleModule(
         argument_spec=module_args,
         supports_check_mode=True,
@@ -150,6 +167,8 @@ def run_module():
         state=module.params['state'],
         number=module.params['number'],
         data=module.params['data'],
+        lookup_field=module.params['lookup_field'],
+        attachment=module.params['attachment']
     )
 
     # Connect to ServiceNow
@@ -160,7 +179,13 @@ def run_module():
     except:
         module.fail_json(msg='Could not connect to ServiceNow', **result)
 
-
+    # check for attachments
+    if module.params['attachment'] is not None:
+        attach = module.params['attachment']
+        b_attach = to_bytes(attach, errors='surrogate_or_strict')
+        if not os.path.exists(b_attach):
+            module.fail_json(msg="Attachment %s not found" % (attach))
+        
     # Deal with check mode
     if module.check_mode:
 
@@ -174,7 +199,7 @@ def run_module():
         elif module.params['state'] == 'absent':
             try:
                 record = conn.query(table=module.params['table'],
-                                    query={'number' : module.params['number']})
+                                    query={module.params['lookup_field']: module.params['number']})
                 res = record.get_one()
                 result['record'] = dict(Success=True)
                 result['changed'] = True
@@ -188,7 +213,7 @@ def run_module():
         else:
             try:
                 record = conn.query(table=module.params['table'],
-                                    query={'number' : module.params['number']})
+                                    query={module.params['lookup_field']: module.params['number']})
                 res = record.get_one()
                 for key, value in module.params['data'].items():
                     res[key] = value
@@ -220,10 +245,13 @@ def run_module():
     elif module.params['state'] == 'absent':
         try:
             record = conn.query(table=module.params['table'],
-                                query={'number' : module.params['number']})
+                                query={module.params['lookup_field']: module.params['number']})
             res = record.delete()
         except pysnow.exceptions.NoResults:
             res = dict(Success=True)
+        except pysnow.exceptions.MultipleResults:
+            snow_error = "Multiple record match"
+            module.fail_json(msg=snow_error, **result)
         except pysnow.UnexpectedResponse as e:
             snow_error = "Failed to delete record: %s, details: %s" % (e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
@@ -237,10 +265,21 @@ def run_module():
     else:
         try:
             record = conn.query(table=module.params['table'],
-                                query={'number' : module.params['number']})
-            res = record.update(dict(module.params['data']))
-            result['record'] = res
-            result['changed'] = True
+                                query={module.params['lookup_field']: module.params['number']})
+            if module.params['data'] is not None:
+                res = record.update(dict(module.params['data']))
+                result['record'] = res
+                result['changed'] = True
+            else:
+                res = record.get_one()
+                result['record'] = res
+            if module.params['attachment'] is not None:
+                res = record.attach(b_attach)
+                result['changed'] = True
+
+        except pysnow.exceptions.MultipleResults:
+            snow_error = "Multiple record match"
+            module.fail_json(msg=snow_error, **result)
         except pysnow.exceptions.NoResults:
             snow_error = "Record does not exist"
             module.fail_json(msg=snow_error, **result)
