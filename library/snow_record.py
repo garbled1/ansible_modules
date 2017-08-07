@@ -77,6 +77,16 @@ author:
 '''
 
 EXAMPLES = '''
+- name: Grab a user record
+  snow_record:
+    username: ansible_test
+    password: my_password
+    instance: dev99999
+    state: present
+    number: 62826bf03710200044e0bfc8bcbe5df1
+    table: sys_user
+    lookup_field: sys_id
+
 - name: Create an incident
   snow_record:
     username: ansible_test
@@ -92,10 +102,19 @@ EXAMPLES = '''
 - name: Delete the record we just made
   snow_record:
     username: admin
-    password: XXXXXXX
+    password: xxxxxxx
     instance: dev99999
     state: absent
     number: "{{new_incident['record']['number']}}"
+
+- name: Delete a non-existant record
+  snow_record:
+    username: ansible_test
+    password: my_password
+    instance: dev99999
+    state: absent
+    number: 9872354
+  failed_when: false
 
 - name: Update an incident
   snow_record:
@@ -107,11 +126,23 @@ EXAMPLES = '''
     data:
       work_notes : "Been working all day on this thing."
 
+- name: Attach a file to an incident
+  snow_record:
+    username: ansible_test
+    password: my_password
+    instance: dev99999
+    state: updated
+    number: INC0000055
+    attachment: README.md
+  tags: attach
 '''
 
 RETURN = '''
 record:
    description: Record data from Service Now
+   type: dict
+attached_file:
+   description: Details of the file that was attached via C(attachment)
    type: dict
 '''
 
@@ -185,6 +216,8 @@ def run_module():
         if not os.path.exists(b_attach):
             module.fail_json(msg="Attachment %s not found" % (attach))
         result['attachment'] = attach
+    else:
+        attach = None 
 
     # Connect to ServiceNow
     try:
@@ -278,6 +311,7 @@ def run_module():
             if attach is not None:
                 res = record.attach(b_attach)
                 result['changed'] = True
+                result['attached_file'] = res
 
         except pysnow.exceptions.MultipleResults:
             snow_error = "Multiple record match"
@@ -288,8 +322,8 @@ def run_module():
         except pysnow.UnexpectedResponse as e:
             snow_error = "Failed to update record: %s, details: %s" % (e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
-        except:
-            snow_error = "Failed to update record"
+        except Exception as detail:
+            snow_error = "Failed to update record: ", detail
             module.fail_json(msg=snow_error, **result)
         
     module.exit_json(**result)
