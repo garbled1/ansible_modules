@@ -160,46 +160,52 @@ def run_module():
     if not HAS_PYSNOW:
         module.fail_json(msg='pysnow module required')
 
+    params = module.params
+    instance = params['instance']
+    username = params['username']
+    password = params['password']
+    table=params['table']
+    state=params['state']
+    number=params['number']
+    data=params['data']
+    lookup_field=params['lookup_field']
+
     result = dict(
         changed=False,
-        instance=module.params['instance'],
-        table=module.params['table'],
-        state=module.params['state'],
-        number=module.params['number'],
-        data=module.params['data'],
-        lookup_field=module.params['lookup_field'],
-        attachment=module.params['attachment']
+        instance=instance,
+        table=table,
+        number=number,
+        lookup_field=lookup_field
     )
 
-    # Connect to ServiceNow
-    try:
-        conn = pysnow.Client(instance=module.params['instance'],
-                             user=module.params['username'],
-                             password=module.params['password'])
-    except:
-        module.fail_json(msg='Could not connect to ServiceNow', **result)
-
     # check for attachments
-    if module.params['attachment'] is not None:
-        attach = module.params['attachment']
+    if params['attachment'] is not None:
+        attach = params['attachment']
         b_attach = to_bytes(attach, errors='surrogate_or_strict')
         if not os.path.exists(b_attach):
             module.fail_json(msg="Attachment %s not found" % (attach))
-        
+        result['attachment'] = attach
+
+    # Connect to ServiceNow
+    try:
+        conn = pysnow.Client(instance=instance, user=username,
+                             password=password)
+    except:
+        module.fail_json(msg='Could not connect to ServiceNow', **result)
+
     # Deal with check mode
     if module.check_mode:
 
         # if we are in check mode and have no number, we would have created
         # a record.  We can only partially simulate this
-        if module.params['number'] is None:
-            result['record'] = dict(module.params['data'])
+        if number is None:
+            result['record'] = dict(data)
             result['changed'] = True
 
         # do we want to check if the record is non-existent?
-        elif module.params['state'] == 'absent':
+        elif state == 'absent':
             try:
-                record = conn.query(table=module.params['table'],
-                                    query={module.params['lookup_field']: module.params['number']})
+                record = conn.query(table=table, query={lookup_field: number})
                 res = record.get_one()
                 result['record'] = dict(Success=True)
                 result['changed'] = True
@@ -212,10 +218,9 @@ def run_module():
         # Let's simulate modification
         else:
             try:
-                record = conn.query(table=module.params['table'],
-                                    query={module.params['lookup_field']: module.params['number']})
+                record = conn.query(table=table, query={lookup_field: number})
                 res = record.get_one()
-                for key, value in module.params['data'].items():
+                for key, value in data.items():
                     res[key] = value
                     result['changed'] = True
                 result['record'] = res
@@ -231,10 +236,9 @@ def run_module():
     # now for the real thing: (non-check mode)
         
     # are we creating a new record? 
-    if module.params['state'] == 'present' and module.params['number'] is None:
+    if state == 'present' and number is None:
         try:
-            record = conn.insert(table=module.params['table'],
-                                 payload=dict(module.params['data']))
+            record = conn.insert(table=table, payload=dict(data))
         except pysnow.UnexpectedResponse as e:
             snow_error = "Failed to create record: %s, details: %s" % (e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
@@ -242,10 +246,9 @@ def run_module():
         result['changed'] = True
 
     # we are deleting a record
-    elif module.params['state'] == 'absent':
+    elif state == 'absent':
         try:
-            record = conn.query(table=module.params['table'],
-                                query={module.params['lookup_field']: module.params['number']})
+            record = conn.query(table=table, query={lookup_field: number})
             res = record.delete()
         except pysnow.exceptions.NoResults:
             res = dict(Success=True)
@@ -264,16 +267,15 @@ def run_module():
     # We want to update a record
     else:
         try:
-            record = conn.query(table=module.params['table'],
-                                query={module.params['lookup_field']: module.params['number']})
-            if module.params['data'] is not None:
-                res = record.update(dict(module.params['data']))
+            record = conn.query(table=table, query={lookup_field: number})
+            if data is not None:
+                res = record.update(dict(data))
                 result['record'] = res
                 result['changed'] = True
             else:
                 res = record.get_one()
                 result['record'] = res
-            if module.params['attachment'] is not None:
+            if attach is not None:
                 res = record.attach(b_attach)
                 result['changed'] = True
 
