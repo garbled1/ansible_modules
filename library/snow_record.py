@@ -214,7 +214,7 @@ def run_module():
         attach = params['attachment']
         b_attach = to_bytes(attach, errors='surrogate_or_strict')
         if not os.path.exists(b_attach):
-            module.fail_json(msg="Attachment %s not found" % (attach))
+            module.fail_json(msg="Attachment {0} not found".format(attach))
         result['attachment'] = attach
     else:
         attach = None 
@@ -223,8 +223,8 @@ def run_module():
     try:
         conn = pysnow.Client(instance=instance, user=username,
                              password=password)
-    except:
-        module.fail_json(msg='Could not connect to ServiceNow', **result)
+    except Exception as detail:
+        module.fail_json(msg='Could not connect to ServiceNow: {0}'.format(str(detail)), **result)
 
     # Deal with check mode
     if module.check_mode:
@@ -244,9 +244,8 @@ def run_module():
                 result['changed'] = True
             except pysnow.exceptions.NoResults:
                 result['record'] = None
-            except:
-                module.fail_json(msg="Unknown failure in query record",
-                                 **result)
+            except Exception as detail:
+                module.fail_json(msg="Unknown failure in query record: {0}".format(str(detail)), **result)
 
         # Let's simulate modification
         else:
@@ -260,9 +259,8 @@ def run_module():
             except pysnow.exceptions.NoResults:
                 snow_error = "Record does not exist"
                 module.fail_json(msg=snow_error, **result)
-            except:
-                module.fail_json(msg="Unknown failure in query record",
-                                 **result)
+            except Exception as detail:
+                module.fail_json(msg="Unknown failure in query record: {0}".format(str(detail)), **result)
         module.exit_json(**result)
 
 
@@ -273,7 +271,7 @@ def run_module():
         try:
             record = conn.insert(table=table, payload=dict(data))
         except pysnow.UnexpectedResponse as e:
-            snow_error = "Failed to create record: %s, details: %s" % (e.error_summary, e.error_details)
+            snow_error = "Failed to create record: {0}, details: {1}".format(e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
         result['record'] = record
         result['changed'] = True
@@ -289,10 +287,10 @@ def run_module():
             snow_error = "Multiple record match"
             module.fail_json(msg=snow_error, **result)
         except pysnow.UnexpectedResponse as e:
-            snow_error = "Failed to delete record: %s, details: %s" % (e.error_summary, e.error_details)
+            snow_error = "Failed to delete record: {0}, details: {1}".format(e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
-        except:
-            snow_error = "Failed to delete record"
+        except Exception as detail:
+            snow_error = "Failed to delete record: {0}".format(str(detail))
             module.fail_json(msg=snow_error, **result)
         result['record'] = res
         result['changed'] = True
@@ -320,10 +318,10 @@ def run_module():
             snow_error = "Record does not exist"
             module.fail_json(msg=snow_error, **result)
         except pysnow.UnexpectedResponse as e:
-            snow_error = "Failed to update record: %s, details: %s" % (e.error_summary, e.error_details)
+            snow_error = "Failed to update record: {0}, details: {1}".format(e.error_summary, e.error_details)
             module.fail_json(msg=snow_error, **result)
         except Exception as detail:
-            snow_error = "Failed to update record: ", detail
+            snow_error = "Failed to update record: {0}".format(str(detail))
             module.fail_json(msg=snow_error, **result)
         
     module.exit_json(**result)

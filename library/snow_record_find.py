@@ -13,15 +13,15 @@ ANSIBLE_METADATA = {
 
 DOCUMENTATION = '''
 ---
-module: snow_get_record
+module: snow_record_find
 
-short_description: Search records from ServiceNow
+short_description: Search for multiple records from ServiceNow
 
 version_added: "2.4"
 
 description:
-    - Gets a single record of a specified type from ServiceNow denoted
-      by number (record number)
+    - Gets multiple records from a specified table from ServiceNow 
+      based on a query field.
 
 options:
     instance:
@@ -145,12 +145,12 @@ def run_module():
         conn = pysnow.Client(instance=module.params['instance'],
                              user=module.params['username'],
                              password=module.params['password'])
-    except:
-        module.fail_json(msg='Could not connect to ServiceNow', **result)
+    except Exception as detail:
+        module.fail_json(msg='Could not connect to ServiceNow: {0}'.format(str(detail)), **result)
 
     try:
         record = conn.query(table=module.params['table'],
-                            query={ module.params['query_field'] : module.params['query_string'] })
+                            query={ module.params['query_field']: module.params['query_string'] })
         if module.params['return_fields'] is not None:
             res = record.get_multiple(fields=module.params['return_fields'],
                                       limit=module.params['max_records'],
@@ -159,8 +159,8 @@ def run_module():
             res = record.get_multiple(limit=module.params['max_records'],
                                       order_by=[module.params['order_by']])
         result['record'] = list(res)
-    except:
-        module.fail_json(msg='Failed to find record', **result)
+    except Exception as detail:
+        module.fail_json(msg='Failed to find record: {0}'.format(str(detail)), **result)
 
     module.exit_json(**result)
 
