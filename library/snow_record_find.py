@@ -20,7 +20,7 @@ short_description: Search for multiple records from ServiceNow
 version_added: "2.4"
 
 description:
-    - Gets multiple records from a specified table from ServiceNow 
+    - Gets multiple records from a specified table from ServiceNow
       based on a query field.
 
 options:
@@ -89,18 +89,18 @@ EXAMPLES = '''
 '''
 
 RETURN = '''
-    record:
-	record: The full contents of the matching ServiceNow records
-		as a list of records.
-        type: dict
+record:
+    description: The full contents of the matching ServiceNow records as a list of records.
+    type: dict
+    returned: always
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 # Pull in pysnow
-HAS_PYSNOW=False
+HAS_PYSNOW = False
 try:
     import pysnow
-    HAS_PYSNOW=True
+    HAS_PYSNOW = True
 
 except ImportError:
     pass
@@ -150,7 +150,7 @@ def run_module():
 
     try:
         record = conn.query(table=module.params['table'],
-                            query={ module.params['query_field']: module.params['query_string'] })
+                            query={module.params['query_field']: module.params['query_string']})
         if module.params['return_fields'] is not None:
             res = record.get_multiple(fields=module.params['return_fields'],
                                       limit=module.params['max_records'],
@@ -163,6 +163,7 @@ def run_module():
         module.fail_json(msg='Failed to find record: {0}'.format(str(detail)), **result)
 
     module.exit_json(**result)
+
 
 def main():
     run_module()
