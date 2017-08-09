@@ -141,9 +141,11 @@ RETURN = '''
 record:
    description: Record data from Service Now
    type: dict
+   returned: when supported
 attached_file:
    description: Details of the file that was attached via C(attachment)
    type: dict
+   returned: when supported
 '''
 
 import os
@@ -152,10 +154,10 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils._text import to_bytes, to_native
 
 # Pull in pysnow
-HAS_PYSNOW=False
+HAS_PYSNOW = False
 try:
     import pysnow
-    HAS_PYSNOW=True
+    HAS_PYSNOW = True
 
 except ImportError:
     pass
@@ -176,7 +178,7 @@ def run_module():
         lookup_field=dict(default='number', required=False, type='str'),
         attachment=dict(default=None, required=False, type='str')
     )
-    module_required_if=[
+    module_required_if = [
         ['state', 'updated', ['number']],
         ['state', 'absent', ['number']],
     ]
@@ -195,11 +197,11 @@ def run_module():
     instance = params['instance']
     username = params['username']
     password = params['password']
-    table=params['table']
-    state=params['state']
-    number=params['number']
-    data=params['data']
-    lookup_field=params['lookup_field']
+    table = params['table']
+    state = params['state']
+    number = params['number']
+    data = params['data']
+    lookup_field = params['lookup_field']
 
     result = dict(
         changed=False,
@@ -217,7 +219,7 @@ def run_module():
             module.fail_json(msg="Attachment {0} not found".format(attach))
         result['attachment'] = attach
     else:
-        attach = None 
+        attach = None
 
     # Connect to ServiceNow
     try:
@@ -263,10 +265,9 @@ def run_module():
                 module.fail_json(msg="Unknown failure in query record: {0}".format(str(detail)), **result)
         module.exit_json(**result)
 
-
     # now for the real thing: (non-check mode)
-        
-    # are we creating a new record? 
+
+    # are we creating a new record?
     if state == 'present' and number is None:
         try:
             record = conn.insert(table=table, payload=dict(data))
@@ -323,8 +324,9 @@ def run_module():
         except Exception as detail:
             snow_error = "Failed to update record: {0}".format(str(detail))
             module.fail_json(msg=snow_error, **result)
-        
+
     module.exit_json(**result)
+
 
 def main():
     run_module()
