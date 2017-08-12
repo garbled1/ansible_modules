@@ -1,3 +1,52 @@
+- name: Find the task I want
+  snow_record:
+    username: ansible_test
+    password: my_password
+    instance: dev38191
+    table: sc_task
+    lookup_field: number
+    number: SCTASK0010002
+    state: present
+  tags: test
+  register: mytask
+
+- name: Find the linux machines
+  snow_record_find:
+    username:  ansible_test
+    password: my_password
+    instance: dev38191
+    table: cmdb_ci_linux_server
+    query_field: os
+    query_string: 'Linux Red Hat'
+    return_fields:
+      - sys_id
+  tags: test
+  register: cis
+
+- name: Attach some stuff
+  snow_record:
+    username: ansible_test
+    password: my_password
+    instance: dev38191
+    table: task_ci
+    state: present
+    data:
+      task: "{{mytask.record['sys_id']}}"
+      ci_item: "{{item['sys_id']}}"
+  with_items:
+    - "{{cis.record}}"
+  tags: test
+
+- name: Goof off
+  snow_record_find:
+    username: ansible_test
+    password: my_password
+    instance: dev38191
+    table: task_ci
+    query_field: sys_id
+    query_string: 2d8723d9db6c4300c791fe1ebf961941
+  tags: test
+
 - name: Search for incident assigned to group, return specific fields
   snow_record_find:
     username: ansible_test
@@ -36,10 +85,11 @@
 - name: Delete the record we just made
   snow_record:
     username: admin
-    password: Thermal1
+    password: ADMINPASS
     instance: dev38191
     state: absent
     number: "{{new_incident['record']['number']}}"
+  tags: hi
 
 - name: Delete a non-existant record
   snow_record:
