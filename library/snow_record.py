@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.0',
+    'metadata_version': '1.1',
     'status': ['preview'],
     'supported_by': 'community'
 }
@@ -42,7 +42,7 @@ options:
         default: incident
     state:
         description:
-            - If C(present) or C(updated) is supplied with a C(number)
+            - If C(present) is supplied with a C(number)
               argument, the module will attempt to update the record with
               the supplied data.  If no such record exists, a new one will
               be created.  C(absent) will delete a record.
@@ -51,12 +51,10 @@ options:
     data:
         description:
             - key, value pairs of data to load into the record.
-              See Examples. Required for
-              C(state:updated) or C(state:present)
+              See Examples. Required for C(state:present)
     number:
         description:
-            - Record number to update. Required for
-              C(state:updated) or C(state:absent)
+            - Record number to update. Required for C(state:absent)
         required: false
     lookup_field:
         description:
