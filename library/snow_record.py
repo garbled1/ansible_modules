@@ -46,8 +46,7 @@ options:
               argument, the module will attempt to update the record with
               the supplied data.  If no such record exists, a new one will
               be created.  C(absent) will delete a record.
-        choices: [ present, absent, updated ]
-        default: updated
+        choices: [ present, absent ]
         required: true
     data:
         description:
@@ -121,7 +120,7 @@ EXAMPLES = '''
     username: ansible_test
     password: my_password
     instance: dev99999
-    state: updated
+    state: present
     number: INC0000055
     data:
       work_notes : "Been working all day on this thing."
@@ -131,7 +130,7 @@ EXAMPLES = '''
     username: ansible_test
     password: my_password
     instance: dev99999
-    state: updated
+    state: present
     number: INC0000055
     attachment: README.md
   tags: attach
@@ -171,7 +170,7 @@ def run_module():
         username=dict(default=None, type='str', required=True, no_log=True),
         password=dict(default=None, type='str', required=True, no_log=True),
         table=dict(type='str', required=False, default='incident'),
-        state=dict(choices=['updated', 'present', 'absent'],
+        state=dict(choices=['present', 'absent'],
                    type='str', required=True),
         number=dict(default=None, required=False, type='str'),
         data=dict(default=None, requried=False, type='dict'),
@@ -179,7 +178,6 @@ def run_module():
         attachment=dict(default=None, required=False, type='str')
     )
     module_required_if = [
-        ['state', 'updated', ['number']],
         ['state', 'absent', ['number']],
     ]
 

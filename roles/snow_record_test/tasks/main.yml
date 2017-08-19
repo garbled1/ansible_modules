@@ -90,6 +90,8 @@
     state: absent
     number: "{{new_incident['record']['number']}}"
   tags: hi
+  failed_when: false
+  ignore_errors: true
 
 - name: Delete a non-existant record
   snow_record:
@@ -105,7 +107,7 @@
     username: ansible_test
     password: my_password
     instance: dev38191
-    state: updated
+    state: present
     number: INC0000055
     data:
       work_notes : "Been working all day on this thing."
@@ -115,7 +117,7 @@
     username: ansible_test
     password: my_password
     instance: dev38191
-    state: updated
+    state: present
     number: INC0000055
     attachment: README.md
   tags: attach
