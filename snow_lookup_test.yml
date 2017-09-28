@@ -1,0 +1,30 @@
+---
+- hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    snow_context:
+      table: incident
+      instance: dev18962
+      username: ansible_test
+      password: my_password
+      result_fields: [number]
+  tasks:
+
+    - name: Example of with_snow using record numbers and context
+      debug:
+        var: item
+        verbosity: 0
+      with_snow:
+        - context: "{{snow_context}}"
+        - INC0000055
+        - INC0000054
+    
+    - name: check for incident numbered INC0000055
+      debug: msg={{ lookup("snow", "INC0000055", context=snow_context) }}
+
+    - name: Find all records in the incident table that are on hold, full variable definition
+      debug: msg={{ lookup("snow", "2", instance='dev18962',
+                    username='ansible_test', password='my_password',
+                    table='incident', lookup_field='state', result_fields=['sys_id']) }}
+
