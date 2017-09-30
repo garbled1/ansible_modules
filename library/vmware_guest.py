@@ -107,6 +107,11 @@ options:
     - Affect machine to the given resource pool.
     - Resource pool should be child of the selected host parent.
     version_added: '2.3'
+  resource_pool_cluster_root:
+    description:
+    - Set the resource pool to the root of a cluster
+    type: bool
+    version_added: '2.5'
   wait_for_ip_address:
     description:
     - Wait until vCenter detects an IP address for the VM.
@@ -1461,6 +1466,7 @@ def main():
         linked_clone=dict(type='bool', default=False),
         networks=dict(type='list', default=[]),
         resource_pool=dict(type='str'),
+        resource_pool_cluster_root=dict(type=bool, default=False),
         customization=dict(type='dict', default={}, no_log=True),
     )
 
@@ -1468,6 +1474,9 @@ def main():
                            supports_check_mode=True,
                            mutually_exclusive=[
                                ['cluster', 'esxi_hostname'],
+                           ],
+                           required_if=[
+                               ['resource_pool_cluster_root', True, ['cluster']],
                            ],
                            )
 
