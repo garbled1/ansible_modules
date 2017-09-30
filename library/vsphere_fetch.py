@@ -28,14 +28,16 @@ options:
     description:
       - The vCenter server on which the datastore is available.
     required: true
-  login:
+  url_username:
     description:
       - The login name to authenticate on the vCenter server.
     required: true
-  password:
+    aliases: ['username', 'login']
+  url_password:
     description:
       - The password to authenticate on the vCenter server.
     required: true
+    aliases: ['password']
   src:
     description:
       - The file on the datastore to fetch
@@ -73,7 +75,7 @@ options:
       - Prior to 0.6, this module behaved as if C(yes) was the default.
     default: 'no'
     type: bool
-    aliases: [ thirsty ]
+    aliases: ['thirsty']
   backup:
     description:
       - Create a backup file including the timestamp information so you can get
@@ -220,7 +222,7 @@ import re
 import datetime
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.six.moves.urllib.parse import urlencode
+from ansible.module_utils.six.moves.urllib.parse import urlsplit, urlencode
 from ansible.module_utils._text import to_native
 from ansible.module_utils.urls import fetch_url
 
@@ -233,14 +235,14 @@ def vmware_path(datastore, datacenter, path):
     datacenter = datacenter.replace('&', '%26')
     if not path.startswith("/"):
         path = "/" + path
-    params = dict( dsName = datastore )
+    params = dict(dsName=datastore)
     if datacenter:
         params["dcPath"] = datacenter
     params = urlencode(params)
     return "%s?%s" % (path, params)
 
 
-def vmware_get(module, url, dest, last_mod_time, force, timeout=10, tmp_dest=''):
+def vmware_get(module, url, dest, last_mod_time, force, timeout, tmp_dest):
     """
     Download the file from vsphere and store in a temporary file.
     Code based on get_url module
@@ -253,9 +255,7 @@ def vmware_get(module, url, dest, last_mod_time, force, timeout=10, tmp_dest='')
         method = 'GET'
 
     # I'm not sure if vmware does an ECONNRESET on download of file in use
-    r, info = fetch_url(module, url, force=force, url_username=login,
-                        url_password=password, validate_certs=validate_certs,
-                        force_basic_auth=True)
+    r, info = fetch_url(module, url, force=force)
 
     if info['status'] == 304:
         module.exit_json(url=url, dest=dest, changed=False, msg=info.get('msg', ''))
@@ -264,7 +264,7 @@ def vmware_get(module, url, dest, last_mod_time, force, timeout=10, tmp_dest='')
     if info['status'] == -1:
         module.fail_json(msg=info['msg'], url=url, dest=dest)
 
-    if info['status'] != 200 and info.get('msg', '').startswith('OK')):
+    if info['status'] != 200:
         module.fail_json(msg="Request failed", status_code=info['status'], response=info['msg'], url=url, dest=dest)
 
     # create a temporary file and copy content to do checksum-based replacement
@@ -283,13 +283,14 @@ def vmware_get(module, url, dest, last_mod_time, force, timeout=10, tmp_dest='')
 
     f = os.fdopen(fd, 'wb')
     try:
-        shutil.copyfileobj(rsp, f)
+        shutil.copyfileobj(r, f)
     except Exception as e:
         os.remove(tempname)
+        module.fail_json(msg="{0} {1}".format(str(r), str(info)))
         module.fail_json(msg="failed to create temporary content file: %s" % to_native(e),
                          exception=traceback.format_exc())
     f.close()
-    rsp.close()
+    r.close()
     return tempname, info
 
 
@@ -324,27 +325,27 @@ def url_filename(url):
 def main():
 
     module = AnsibleModule(
-        argument_spec = dict(
-            host = dict(required=True, aliases=[ 'hostname' ]),
-            login = dict(required=True, aliases=[ 'username' ]),
-            password = dict(required=True, no_log=True),
-            src = dict(required=True, aliases=[ 'name' ]),
-            datacenter = dict(required=True),
-            datastore = dict(required=True),
-            dest = dict(required=True, aliases=[ 'path' ]. type='path'),
-            backup = dict(type='bool'),
+        argument_spec=dict(
+            host=dict(required=True, aliases=['hostname']),
+            url_username=dict(required=True, aliases=['username', 'login']),
+            url_password=dict(required=True, no_log=True, aliases=['password']),
+            src=dict(required=True, aliases=['name']),
+            datacenter=dict(required=True),
+            datastore=dict(required=True),
+            dest=dict(required=True, aliases=['path'], type='path'),
+            backup=dict(type='bool'),
             tmp_dest=dict(type='path'),
             timeout=dict(type='int', default=10),
             force=dict(default='no', aliases=['thirsty'], type='bool'),
-            validate_certs = dict(required=False, default=True, type='bool'),
+            validate_certs=dict(required=False, default=True, type='bool'),
         ),
-        supports_check_mode = True,
-        add_file_common_args = True,
+        supports_check_mode=True,
+        add_file_common_args=True,
     )
 
     host = module.params.get('host')
-    login = module.params.get('login')
-    password = module.params.get('password')
+    login = module.params.get('url_username')
+    password = module.params.get('url_password')
     src = module.params.get('src')
     datacenter = module.params.get('datacenter')
     datastore = module.params.get('datastore')
@@ -358,7 +359,7 @@ def main():
     dest_is_dir = os.path.isdir(dest)
     last_mod_time = None
 
-    remote_path = vmware_path(datastore, datacenter, dest)
+    remote_path = vmware_path(datastore, datacenter, src)
     url = 'https://%s%s' % (host, remote_path)
 
     if not dest_is_dir and os.path.exists(dest):
@@ -378,7 +379,8 @@ def main():
         mtime = os.path.getmtime(dest)
         last_mod_time = datetime.datetime.utcfromtimestamp(mtime)
 
-    tmpsrc, info = vmware_get(module, url, dest, last_mod_time, force, timeout, tmp_dest)
+    tmpsrc, info = vmware_get(module, url=url, dest=dest, last_mod_time=last_mod_time,
+                              force=force, timeout=timeout, tmp_dest=tmp_dest)
 
     if dest_is_dir:
         filename = extract_filename_from_headers(info)
@@ -445,7 +447,7 @@ def main():
         md5sum = module.md5(dest)
     except ValueError:
         md5sum = None
-        
+
     res_args = dict(
         url=url, dest=dest, src=tmpsrc, md5sum=md5sum, datacenter=datacenter,
         datastore=datastore, changed=changed, msg=info.get('msg', ''),

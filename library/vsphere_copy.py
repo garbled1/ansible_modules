@@ -12,7 +12,6 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
 
-
 DOCUMENTATION = '''
 ---
 module: vsphere_copy
@@ -103,6 +102,7 @@ EXAMPLES = '''
     path: other/remote/file
 '''
 
+import os
 import atexit
 import errno
 import mmap
@@ -135,13 +135,13 @@ def main():
     module = AnsibleModule(
         argument_spec = dict(
             state = dict(required=False, choices=['present', 'absent'], default='present')
-            host = dict(required=True, aliases=[ 'hostname' ]),
-            login = dict(required=True, aliases=[ 'username' ]),
+            host = dict(required=True, aliases=['hostname']),
+            login = dict(required=True, aliases=['username']),
             password = dict(required=True, no_log=True),
-            src = dict(required=False, aliases=[ 'name' ]),
+            src = dict(required=False, aliases=['name']),
             datacenter = dict(required=True),
             datastore = dict(required=True),
-            dest = dict(required=True, aliases=[ 'path' ]),
+            dest = dict(required=True, aliases=['path']),
             validate_certs = dict(required=False, default=True, type='bool'),
         ),
         # Implementing check-mode using HEAD is impossible, since size/date is not 100% reliable
@@ -165,8 +165,11 @@ def main():
         fd = open(src, "rb")
         atexit.register(fd.close)
 
-        data = mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)
-        atexit.register(data.close)
+        if os.stat(src).st_size == 0:
+            data = ''
+        else:
+            data = mmap.mmap(fd.fileno(), 0, access=mmap.ACCESS_READ)
+            atexit.register(data.close)
         action = 'upload'
     elif state == 'absent':
         action = 'delete'
