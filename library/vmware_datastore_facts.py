@@ -63,18 +63,16 @@ instance:
     sample: None
 """
 
-# try:
-#     import pyVmomi
-#     from pyVmomi import vim
-
-#     HAS_PYVMOMI = True
-# except ImportError:
-#     HAS_PYVMOMI = False
+try:
+    import pyVmomi
+    from pyVmomi import vim
+except ImportError:
+    pass
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils._text import to_text
 from ansible.module_utils.vmware import (connect_to_api, vmware_argument_spec,
-                                         get_all_objs, HAS_PYVMOMI, find_obj)
+                                         get_all_objs, HAS_PYVMOMI, find_obj, find_cluster_by_name)
 
 
 # def find_obj(content, vimtype, name, first=True):
@@ -163,7 +161,7 @@ class PyVmomiHelper(object):
         return datastores
 
     def lookup_datastore_by_cluster(self):
-        cluster = self.cache.get_cluster(self.params['cluster'])
+        cluster = find_cluster_by_name(self.content, self.params['cluster'])
         if not cluster:
             self.module.fail_json(msg='Failed to find cluster "%(cluster)s"' % self.params)
         c_dc = cluster.datastore

@@ -321,7 +321,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils._text import to_text
 from ansible.module_utils.vmware import (connect_to_api, find_obj, gather_vm_facts, get_all_objs,
                                          compile_folder_path_for_object, serialize_spec, find_vm_by_id,
-                                         vmware_argument_spec)
+                                         vmware_argument_spec, find_cluster_by_name)
 
 
 class PyVmomiDeviceHelper(object):

@@ -133,16 +133,16 @@ def vmware_path(datastore, datacenter, path):
 def main():
 
     module = AnsibleModule(
-        argument_spec = dict(
-            state = dict(required=False, choices=['present', 'absent'], default='present')
-            host = dict(required=True, aliases=['hostname']),
-            login = dict(required=True, aliases=['username']),
-            password = dict(required=True, no_log=True),
-            src = dict(required=False, aliases=['name']),
-            datacenter = dict(required=True),
-            datastore = dict(required=True),
-            dest = dict(required=True, aliases=['path']),
-            validate_certs = dict(required=False, default=True, type='bool'),
+        argument_spec=dict(
+            state=dict(required=False, choices=['present', 'absent'], default='present'),
+            host=dict(required=True, aliases=['hostname']),
+            login=dict(required=True, aliases=['username']),
+            password=dict(required=True, no_log=True),
+            src=dict(required=False, aliases=['name']),
+            datacenter=dict(required=True),
+            datastore=dict(required=True),
+            dest=dict(required=True, aliases=['path']),
+            validate_certs=dict(required=False, default=True, type='bool'),
         ),
         # Implementing check-mode using HEAD is impossible, since size/date is not 100% reliable
         supports_check_mode = False,
@@ -173,6 +173,7 @@ def main():
         action = 'upload'
     elif state == 'absent':
         action = 'delete'
+        data = ''
 
     remote_path = vmware_path(datastore, datacenter, dest)
     url = 'https://%s%s' % (host, remote_path)
