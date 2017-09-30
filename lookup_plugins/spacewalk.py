@@ -6,7 +6,9 @@ __metaclass__ = type
 
 
 import os
-from ansible import errors
+
+from ansible.plugins.lookup import LookupBase
+from ansible.errors import AnsibleError
 from ansible.module_utils.six.moves import xmlrpc_client
 
 try:
@@ -45,13 +47,11 @@ DOCUMENTATION = '''
             default: [name]
             type: list
             choices: ['name', 'hostname', 'last_checkin', 'ip', 'hw_description',
-                      'hw_device_id', 'hw_vendor_id', 'hw_driver']
-            required: False
+                      'hw_device_id', 'hw_vendor_id', 'hw_driver', 'id']
         lookup_field:
             description: The field to compare each term against
-            required: False
             default: "hostname"
-            choices: ['name', 'hostname', 'ip', 'hw_device_id', 'hw_vendor_id', 'hw_driver']
+            choices: ['name', 'hostname', 'ip', 'hw_device_id', 'hw_vendor_id', 'hw_driver', 'id']
 '''
 
 EXAMPLES = '''
@@ -67,7 +67,7 @@ EXAMPLES = '''
       debug:
         var: item
         verbosity: 0
-      with_snow:
+      with_spacewalk:
         - context: "{{sat_context}}"
         - dbnode1
         - web02
@@ -75,7 +75,7 @@ EXAMPLES = '''
     - name: check for a host named joe01 with context
       debug: msg={{ lookup("spacewalk", "joe01", context=sat_context) }}
 
-    - name: Find all servers whose ip starts with 10.1.5., full variable definition
+    - name: Find all servers whose ip contains 10.1.5., full variable definition
       debug: msg={{ lookup("spacewalk", "10.1.5", saturl='http://sat/rpc/api',
                            username='satuser', password='my_password',
                            lookup_field='ip', result_fields=['name']) }}
@@ -92,10 +92,6 @@ RETURN = '''
 
 
 def spacewalk_connect(saturl=None, password=None, user=None):
-    saturl = kwargs.get('saturl')
-    password = kwargs.get('password')
-    user = kwargs.get('user')
-
     sw_conn = dict()
     if password is None or saturl is None or user is None:
         raise AnsibleError('password, saturl and user are required values')
@@ -108,19 +104,22 @@ def spacewalk_connect(saturl=None, password=None, user=None):
     return sw_conn
 
 
-def spacewalk_search(term, sw=None, result_fields=['name'], lookup_field='hostname'):
+def spacewalk_search(term, sw=None, result_fields=None, lookup_field='hostname'):
     value = []
 
-    valid_result = ['name', 'hostname', 'last_checkin', 'ip', 'hw_description',
+    valid_result = ['name', 'hostname', 'last_checkin', 'id', 'ip', 'hw_description',
                     'hw_device_id', 'hw_vendor_id', 'hw_driver']
 
     if sw is None:
         raise AnsibleError("Could not connect to spacewalk/satellite")
 
+    if result_fields is None:
+        result_fields = ['name']
+
     for rf in result_fields:
-        if not rf in valid_result:
+        if rf not in valid_result:
             raise AnsibleError("{0} is not a valid result field, use one of {1}".format(rf, str(valid_result)))
-    
+
     # first, figure out what our lookup is
     if lookup_field == 'hw_description':
         systems = sw['client'].system.search.deviceDescription(sw['session'], term)
@@ -149,8 +148,15 @@ def spacewalk_search(term, sw=None, result_fields=['name'], lookup_field='hostna
         if len(result_fields) == 1:
             res = sys.get(result_fields[0])
             value.append(res)
-        else:
+        elif not result_fields:
             value.append(sys)
+        else:
+            # dict of per-system values requested
+            sysval = dict()
+            for rf in result_fields:
+                res = sys.get(rf)
+                sysval[rf] = res
+            value.append(sysval)
 
     return value
 
@@ -166,8 +172,8 @@ class LookupModule(LookupBase):
         saturl = kwargs.pop('saturl', None)
         username = kwargs.pop('username', None)
         password = kwargs.pop('password', None)
-        lookup_field = kwargs.pop('lookup_field', 'number')
-        result_fields = kwargs.pop('result_fields', [])
+        lookup_field = kwargs.pop('lookup_field', 'hostname')
+        result_fields = kwargs.pop('result_fields', ['name'])
         ctx = kwargs.get('context', {})
 
         for term in terms:
@@ -178,15 +184,14 @@ class LookupModule(LookupBase):
             saturl = ctx.pop('saturl', None)
             username = ctx.pop('username', None)
             password = ctx.pop('password', None)
-            lookup_field = ctx.pop('lookup_field', 'number')
-            result_fields = ctx.pop('result_fields', [])
+            lookup_field = ctx.pop('lookup_field', 'hostname')
+            result_fields = ctx.pop('result_fields', ['name'])
 
-
-        sw_conn = spacewalk_connect(saturl=saturl, password=password, user=username)
+        sw_conn = spacewalk_connect(saturl=str(saturl), password=str(password), user=str(username))
 
         for term in terms:
             if not isinstance(term, dict):
-                value = spacewalk_search(term, sw=sw_conn, result_fields=result_fields, lookup_field=lookup_field)
+                value = spacewalk_search(str(term), sw=sw_conn, result_fields=result_fields, lookup_field=lookup_field)
                 ret.append(value)
 
         sw_conn['client'].auth.logout(sw_conn['session'])
