@@ -228,7 +228,8 @@ def main():
             else:
                 chunked = 0
 
-    module.fail_json(msg='Failed to {0}'.format(action), errno=None, status=status, reason=r.msg, length=length, headers=dict(r.headers), chunked=chunked, url=url)
+    module.fail_json(msg='Failed to {0}'.format(action), errno=None, status=status, reason=r.msg,
+                     length=length, headers=dict(r.headers), chunked=chunked, url=url)
 
 
 if __name__ == '__main__':
