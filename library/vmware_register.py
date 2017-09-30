@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 #
-# This module is also sponsored by E.T.A.I. (www.etai.fr)
+# Copyright (c) 2017 Tim Rightnour <thegarbledone@gmail.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
@@ -12,48 +12,130 @@ ANSIBLE_METADATA = {'metadata_version': '1.1',
                     'status': ['preview'],
                     'supported_by': 'community'}
 
-import time
+DOCUMENTATION = '''
+---
+module: vmware_register
+short_description: Register or un-register a VM with VMware
+version_added: 2.5
+description:
+  - Registers a VM or template file with VMware as a new VM/template respectively
+  - Can also be used to un-register a VM/template (identical to remove from inventory)
+author: Tim Rightnour
+requirements:
+  - python >= 2.6
+  - PyVmomi
+notes:
+  - When registering a VM, either C(esxi_hostname), C(resource_pool) or
+  - C(resource_pool_cluster_root) and C(cluster) are required
+  - Tested on vSphere 5.5 and 6.0
+options:
+  state:
+    description: Desired state of VM/template
+    required: True
+    choices: ['present', 'absent']
+  name:
+    description: Name to register the VM/template with
+    required: True
+  is_template:
+    description: Register this file as a template
+    default: False
+    type: bool
+  path:
+    description: The path to the file on the datastore to register
+    required: True
+  folder:
+    description: The folder in VMware to register the VM/template under
+    required: True
+  datacenter:
+    description: The datacenter to register the VM/template in
+    required: True
+  datastore:
+    description: The datastore the file to register is located in
+    required: True
+  esxi_hostname:
+    description: The esxi host to register the VM/template against
+  cluster:
+    description:
+      - The cluster to locate a resource_pool from
+      - Required when C(resource_pool_cluster_root) is True
+  resource_pool_cluster_root:
+    description: Force the VM/template into the root resource pool of the cluster
+    type: bool
+  resource_pool:
+    description: The resource pool to register the VM/template in
 
-HAS_PYVMOMI = False
+extends_documentation_fragment: vmware.documentation
+'''
+
+EXAMPLES = r'''
+- name: Register a template
+  vsphere_register:
+    state: present
+    name: My_Template
+    is_template: True
+    path: templates/template.vmxt
+    folder: My_Templates/Template
+    datacenter: dc_1
+    datastore: ds_1
+    hostname: vsphere.host.com
+    username: administrator@vsphere.local
+    password: vmware
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Delete VM from inventory
+  vsphere_register:
+    state: absent
+    name: vm_guest_name
+    path: vm/vm_guest_name/vm_guest_name.vmdk
+    folder: Databases/Production
+    datacenter: dc_1
+    datastore: prod_ds
+    hostname: vsphere.host.com
+    username: administrator@vsphere.local
+    password: vmware
+    validate_certs: false
+  delegate_to: localhost
+
+- name: Register a VM to a specific esxi host
+  vsphere_register:
+    state: present
+    name: new_db_host
+    is_template: True
+    path: vm/new_db_host/new_db_host.vmdk
+    folder: Databases/Production
+    datacenter: dc_1
+    datastore: ds_1
+    esxi_hostname: prod_db_esxi.my.com
+    hostname: vsphere.host.com
+    username: administrator@vsphere.local
+    password: vmware
+    validate_certs: false
+  delegate_to: localhost
+'''
+
+RETURN = r'''
+instance:
+    description: metadata about the new virtualmachine
+    returned: always
+    type: dict
+    sample: None
+'''
+
 try:
     import pyVmomi
     from pyVmomi import vim
-
-    HAS_PYVMOMI = True
 except ImportError:
     pass
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils._text import to_text
-# from ansible.module_utils.vmware import (connect_to_api, gather_vm_facts, get_all_objs,
-#                                          compile_folder_path_for_object, serialize_spec,
-#                                          find_vm_by_id, vmware_argument_spec)
+from ansible.module_utils._text import to_native
 from ansible.module_utils.vmware import (connect_to_api, gather_vm_facts, get_all_objs,
-                                         find_vm_by_name, vmware_argument_spec, wait_for_task)
-
-
-def find_obj(content, vimtype, name, first=True):
-    container = content.viewManager.CreateContainerView(container=content.rootFolder, recursive=True, type=vimtype)
-    obj_list = container.view
-    container.Destroy()
-
-    # Backward compatible with former get_obj() function
-    if name is None:
-        if obj_list:
-            return obj_list[0]
-        return None
-
-    # Select the first match
-    if first is True:
-        for obj in obj_list:
-            if obj.name == name:
-                return obj
-
-        # If no object found, return None
-        return None
-
-    # Return all matching objects if needed
-    return [obj for obj in obj_list if obj.name == name]
+                                         compile_folder_path_for_object, serialize_spec,
+                                         find_vm_by_name, vmware_argument_spec,
+                                         wait_for_task, HAS_PYVMOMI, find_cluster_by_name,
+                                         find_hostsystem_by_name, find_datacenter_by_name,
+                                         find_datastore_by_name, find_obj)
 
 
 class PyVmomiCache(object):
@@ -61,9 +143,7 @@ class PyVmomiCache(object):
     def __init__(self, content, dc_name=None):
         self.content = content
         self.dc_name = dc_name
-        self.networks = {}
         self.clusters = {}
-        self.esx_hosts = {}
         self.parent_datacenters = {}
 
     def find_obj(self, content, types, name, confine_to_datacenter=True):
@@ -93,18 +173,6 @@ class PyVmomiCache(object):
                 objects = [x for x in objects if self.get_parent_datacenter(x).name == self.dc_name]
 
         return objects
-
-    def get_cluster(self, cluster):
-        if cluster not in self.clusters:
-            self.clusters[cluster] = self.find_obj(self.content, [vim.ClusterComputeResource], cluster)
-
-        return self.clusters[cluster]
-
-    def get_esx_host(self, host):
-        if host not in self.esx_hosts:
-            self.esx_hosts[host] = self.find_obj(self.content, [vim.HostSystem], host)
-
-        return self.esx_hosts[host]
 
     def get_parent_datacenter(self, obj):
         """ Walk the parent tree to find the objects datacenter """
@@ -149,31 +217,12 @@ class PyVmomiHelper(object):
 
     def select_host(self, datastore_name):
         # given a datastore, find an attached host (just pick the first one)
-        datastore = self.cache.find_obj(self.content, [vim.Datastore], datastore_name)
+        datastore = find_datastore_by_name(self.content, datastore_name)
         for host_mount in datastore.host:
             return host_mount.key
 
-
-    """  DELETEME!!! """
-    def compile_folder_path_for_object(self, vobj):
-        """ make a /vm/foo/bar/baz like folder path for an object """
-
-        paths = []
-        if isinstance(vobj, vim.Folder):
-            paths.append(vobj.name)
-
-        thisobj = vobj
-        while hasattr(thisobj, 'parent'):
-            thisobj = thisobj.parent
-            if isinstance(thisobj, vim.Folder):
-                paths.append(thisobj.name)
-        paths.reverse()
-        if paths[0] == 'Datacenters':
-            paths.remove('Datacenters')
-        return '/' + '/'.join(paths)
-
     def fobj_from_folder_path(self, dc, folder):
-        datacenter = self.cache.find_obj(self.content, [vim.Datacenter], dc)
+        datacenter = find_datacenter_by_name(self.content, dc)
         if datacenter is None:
             self.module.fail_json(msg='No datacenter named %s was found' % dc)
         # Prepend / if it was missing from the folder path, also strip trailing slashes
@@ -181,7 +230,7 @@ class PyVmomiHelper(object):
             folder = '/%s' % folder
         folder = folder.rstrip('/')
 
-        dcpath = self.compile_folder_path_for_object(datacenter)
+        dcpath = compile_folder_path_for_object(datacenter)
 
         # Check for full path first in case it was already supplied
         if (folder.startswith(dcpath + dc + '/vm')):
@@ -223,6 +272,27 @@ class PyVmomiHelper(object):
         else:
             self.module.fail_json(msg="Failed to find a resource group for %s" % host.name)
 
+    def get_resource_pool(self):
+        resource_pool = None
+        if self.params['esxi_hostname']:
+            host = self.select_host()
+            resource_pool = self.select_resource_pool_by_host(host)
+        elif self.params['resource_pool']:
+            resource_pool = self.select_resource_pool_by_name(self.params['resource_pool'])
+        elif self.params['resource_pool_cluster_root']:
+            if self.params['cluster'] is None:
+                self.module.fail_json(msg='resource_pool_cluster_root requires a cluster name')
+            else:
+                rp_cluster = find_cluster_by_name(self.content, self.params['cluster'])
+                if not rp_cluster:
+                    self.module.fail_json(msg="Failed to find a cluster named %(cluster)s" % self.params)
+                resource_pool = rp_cluster.resourcePool
+
+        if resource_pool is None:
+            self.module.fail_json(msg='Unable to find resource pool, need esxi_hostname, resource_pool, or cluster and resource_pool_cluster_root')
+
+        return resource_pool
+
     def register_vm(self, template=False):
 
         result = dict(
@@ -239,30 +309,17 @@ class PyVmomiHelper(object):
         if self.params['esxi_hostname'] is None:
             esxhost = self.select_host(self.params['datastore'])
         else:
-            esxhost = self.cache.get_esx_host(self.params['esxi_hostname'])
+            esxhost = find_hostsystem_by_name(self.content, self.params['esxi_hostname'])
 
         if template:
             task = destfolder.RegisterVM_Task("[%s] %s" % (self.params['datastore'], self.params['path']), self.params['name'], asTemplate=True, host=esxhost)
         else:
             # Now we need a resource pool
-            if self.params['esxi_hostname']:
-                resource_pool = self.select_resource_pool_by_host(esxhost)
-            elif self.params['resource_pool_cluster_root']:
-                if self.params['cluster'] is None:
-                    self.module.fail_json(msg='resource_pool_cluster_root requires a cluster name')
-                else:
-                    rp_cluster = self.cache.get_cluster(self.params['cluster'])
-                    if not rp_cluster:
-                        self.module.fail_json(msg="Failed to find a cluster named %(cluster)s" % self.params)
-                    resource_pool = rp_cluster.resourcePool
-            else:
-                resource_pool = self.select_resource_pool_by_name(self.params['resource_pool'])
-
-            if resource_pool is None:
-                self.module.fail_json(msg='Unable to find resource pool, need esxi_hostname, resource_pool, or cluster and resource_pool_cluster_root')
+            resource_pool = self.get_resource_pool(self)
             # Now finally register the VM
-            task = destfolder.RegisterVM_Task("[%s] %s" % (self.params['datastore'], self.params['path']), self.params['name'], asTemplate=False, host=esxhost, pool=resource_pool)
-                                       
+            task = destfolder.RegisterVM_Task("[%s] %s" % (self.params['datastore'], self.params['path']),
+                                              self.params['name'], asTemplate=False, host=esxhost, pool=resource_pool)
+
         if task:
             wait_for_task(task)
             if task.info.state == 'error':
@@ -273,12 +330,11 @@ class PyVmomiHelper(object):
 
         return result
 
-    
+
 def main():
     argument_spec = vmware_argument_spec()
     argument_spec.update(
         state=dict(type='str', default='present', choices=['present', 'absent']),
-        annotation=dict(type='str', aliases=['notes']),
         name=dict(type='str', required=True),
         is_template=dict(type='bool', default=False),
         path=dict(type='str', required=True),
@@ -291,8 +347,9 @@ def main():
         resource_pool_cluster_root=dict(type='bool'),
     )
 
+    # No check mode support, because I don't know how to tell if an image file is registered or not
     module = AnsibleModule(argument_spec=argument_spec,
-                           supports_check_mode=True,
+                           supports_check_mode=False,
                            mutually_exclusive=[
                                ['cluster', 'esxi_hostname'],
                            ],
@@ -328,13 +385,13 @@ def main():
                 module.fail_json(msg="Cannot unregister a VM which is powered on")
             except Exception as e:
                 module.fail_json(msg=to_native(e))
-            result['changed']=True
+            result['changed'] = True
             module.exit_json(**result)
         else:
-            module.exit_json(**result)            
+            module.exit_json(**result)
     else:
         result = pyv.register_vm(template=module.params['is_template'])
-                              
+
     if result['failed']:
         module.fail_json(**result)
     else:
