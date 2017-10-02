@@ -1176,8 +1176,6 @@ class PyVmomiHelper(object):
         if self.params['esxi_hostname']:
             host = self.select_host()
             resource_pool = self.select_resource_pool_by_host(host)
-        elif self.params['resource_pool']:
-            resource_pool = self.select_resource_pool_by_name(self.params['resource_pool'])
         elif self.params['resource_pool_cluster_root']:
             if self.params['cluster'] is None:
                 self.module.fail_json(msg='resource_pool_cluster_root requires a cluster name')
@@ -1186,6 +1184,8 @@ class PyVmomiHelper(object):
                 if not rp_cluster:
                     self.module.fail_json(msg="Failed to find a cluster named %(cluster)s" % self.params)
                 resource_pool = rp_cluster.resourcePool
+        else:
+            resource_pool = self.select_resource_pool_by_name(self.params['resource_pool'])
 
         if resource_pool is None:
             self.module.fail_json(msg='Unable to find resource pool, need esxi_hostname, resource_pool, or cluster and resource_pool_cluster_root')
