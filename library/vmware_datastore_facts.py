@@ -75,30 +75,6 @@ from ansible.module_utils.vmware import (connect_to_api, vmware_argument_spec,
                                          get_all_objs, HAS_PYVMOMI, find_obj, find_cluster_by_name)
 
 
-# def find_obj(content, vimtype, name, first=True):
-#     container = content.viewManager.CreateContainerView(container=content.rootFolder, recursive=True, type=vimtype)
-#     obj_list = container.view
-#     container.Destroy()
-
-#     # Backward compatible with former get_obj() function
-#     if name is None:
-#         if obj_list:
-#             return obj_list[0]
-#         return None
-
-#     # Select the first match
-#     if first is True:
-#         for obj in obj_list:
-#             if obj.name == name:
-#                 return obj
-
-#         # If no object found, return None
-#         return None
-
-#     # Return all matching objects if needed
-#     return [obj for obj in obj_list if obj.name == name]
-
-
 class PyVmomiCache(object):
     """ This class caches references to objects which are requested multiples times but not modified """
     def __init__(self, content, dc_name=None):
@@ -200,6 +176,9 @@ def main():
         dds['maintenanceMode'] = summary.maintenanceMode
         dds['multipleHostAccess'] = summary.multipleHostAccess
         dds['type'] = summary.type
+        # vcsim does not return uncommitted
+        if not summary.uncommitted:
+            summary.uncommitted = 0
         dds['uncommitted'] = summary.uncommitted
         dds['url'] = summary.url
         # Calculated values

@@ -233,17 +233,30 @@ class PyVmomiHelper(object):
         dcpath = compile_folder_path_for_object(datacenter)
 
         # Check for full path first in case it was already supplied
-        if (folder.startswith(dcpath + dc + '/vm')):
+        if folder.startswith(dcpath + dc + '/vm') or folder.startswith(dcpath + '/' + dc + '/vm'):
             fullpath = folder
         elif (folder.startswith('/vm/') or folder == '/vm'):
-            fullpath = "%s%s%s" % (dcpath, dc, folder)
+            fullpath = "%s/%s%s" % (dcpath, dc, folder)
         elif (folder.startswith('/')):
-            fullpath = "%s%s/vm%s" % (dcpath, dc, folder)
+            fullpath = "%s/%s/vm%s" % (dcpath, dc, folder)
         else:
-            fullpath = "%s%s/vm/%s" % (dcpath, dc, folder)
+            fullpath = "%s/%s/vm/%s" % (dcpath, dc, folder)
 
         f_obj = self.content.searchIndex.FindByInventoryPath(fullpath)
+
         return f_obj
+
+    def obj_has_parent(self, obj, parent):
+        assert obj is not None and parent is not None
+        current_parent = obj
+
+        while True:
+            if current_parent.name == parent.name:
+                return True
+
+            current_parent = current_parent.parent
+            if current_parent is None:
+                return False
 
     def select_resource_pool_by_name(self, resource_pool_name):
         resource_pool = self.cache.find_obj(self.content, [vim.ResourcePool], resource_pool_name)
@@ -275,7 +288,7 @@ class PyVmomiHelper(object):
     def get_resource_pool(self):
         resource_pool = None
         if self.params['esxi_hostname']:
-            host = self.select_host()
+            host = self.select_host(self.params['datastore'])
             resource_pool = self.select_resource_pool_by_host(host)
         elif self.params['resource_pool']:
             resource_pool = self.select_resource_pool_by_name(self.params['resource_pool'])
@@ -315,13 +328,16 @@ class PyVmomiHelper(object):
             task = destfolder.RegisterVM_Task("[%s] %s" % (self.params['datastore'], self.params['path']), self.params['name'], asTemplate=True, host=esxhost)
         else:
             # Now we need a resource pool
-            resource_pool = self.get_resource_pool(self)
+            resource_pool = self.get_resource_pool()
             # Now finally register the VM
             task = destfolder.RegisterVM_Task("[%s] %s" % (self.params['datastore'], self.params['path']),
                                               self.params['name'], asTemplate=False, host=esxhost, pool=resource_pool)
 
         if task:
-            wait_for_task(task)
+            try:
+                wait_for_task(task)
+            except:
+                pass
             if task.info.state == 'error':
                 result['failed'] = True
                 result['msg'] = str(task.info.error.msg)
