@@ -250,8 +250,11 @@ class PyVmomiHelper(object):
             if current_parent.name == parent.name:
                 return True
 
-            current_parent = current_parent.parent
-            if current_parent is None:
+            try:
+                current_parent = current_parent.parent
+                if current_parent is None:
+                    return False
+            except:
                 return False
 
     def select_resource_pool_by_name(self, resource_pool_name):
