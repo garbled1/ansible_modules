@@ -272,7 +272,7 @@ def gather_vm_facts(content, vm):
         'hw_memtotal_mb': vm.config.hardware.memoryMB,
         'hw_interfaces': [],
         'hw_datastores': [],
-        'hw_files': dict(),
+        'hw_files': [],
         'hw_esxi_host': None,
         'hw_guest_ha_state': vm.summary.runtime.dasVmProtection,
         'hw_is_template': vm.config.template,
@@ -298,12 +298,24 @@ def gather_vm_facts(content, vm):
     for ds in datastores:
         facts['hw_datastores'].append(ds.info.name)
 
-    files = vm.config.files
-    if files:
-        facts['hw_files']['vmPathName'] = str(files.vmPathName)
-        facts['hw_files']['snapshotDirectory'] = str(files.snapshotDirectory)
-        facts['hw_files']['logDirectory'] = str(files.logDirectory)
-        
+    try:
+        files = vm.config.files
+        layout = vm.layout
+        if files:
+            facts['hw_files'] = [files.vmPathName]
+            for item in layout.snapshot:
+                for snap in item.snapshotFile:
+                    facts['hw_files'].append(files.snapshotDirectory + snap)
+            for item in layout.configFile:
+                facts['hw_files'].append(os.path.dirname(files.vmPathName) + '/' + item)
+            for item in vm.layout.logFile:
+                facts['hw_files'].append(files.logDirectory + item)
+            for item in vm.layout.disk:
+                for disk in item.diskFile:
+                    facts['hw_files'].append(disk)
+    except:
+        pass
+
     folder = vm.parent
     if folder:
         foldername = folder.name
