@@ -6,7 +6,7 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 ANSIBLE_METADATA = {
-    'metadata_version': '1.0',
+    'metadata_version': '1.1',
     'status': ['preview'],
     'supported_by': 'community'
 }
@@ -17,11 +17,11 @@ module: snow_record_find
 
 short_description: Search for multiple records from ServiceNow
 
-version_added: "2.4"
+version_added: "2.5"
 
 description:
     - Gets multiple records from a specified table from ServiceNow
-      based on a query field.
+      based on a query dictionary.
 
 options:
     instance:
@@ -41,13 +41,9 @@ options:
             - Table to query for records
         required: false
         default: incident
-    query_field:
+    query:
         description:
-            - Field to query for records
-        required: true
-    query_string:
-        description:
-            - String to query in query_field
+            - Dict to query for records
         required: true
     max_records:
         description:
@@ -80,12 +76,38 @@ EXAMPLES = '''
     password: my_password
     instance: dev99999
     table: incident
-    query_field: assignment_group
-    query_string: d625dccec0a8016700a222a0f7900d06
+    query:
+      assignment_group: d625dccec0a8016700a222a0f7900d06
     return_fields:
       - number
       - opened_at
 
+- name: Find open standard changes with my template
+  snow_record_find:
+    username: ansible_test
+    password: my_password
+    instance: dev99999
+    table: change_request
+    query:
+      AND:
+        equals:
+          active: "True"
+          type: "standard"
+          u_change_stage: "80"
+        contains:
+          u_template: "MY-Template"
+    return_fields:
+      - sys_id
+      - number
+      - sys_created_on
+      - sys_updated_on
+      - u_template
+      - active
+      - type
+      - u_change_stage
+      - sys_created_by
+      - description
+      - short_description
 '''
 
 RETURN = '''
@@ -100,10 +122,79 @@ from ansible.module_utils.basic import AnsibleModule
 HAS_PYSNOW = False
 try:
     import pysnow
+    from pysnow.exceptions import NoResults
     HAS_PYSNOW = True
 
 except ImportError:
     pass
+
+
+class BuildQuery(object):
+    '''
+    This is a BuildQuery manipulation class that constructs
+    a pysnow.QueryBuilder object based on data input.
+    '''
+
+    def __init__(self, module):
+        self.module = module
+        self.logic_operators = ["AND", "OR", "NQ"]
+        self.condition_operator = {
+            'equals': self._condition_closure,
+            'not_equals': self._condition_closure,
+            'contains': self._condition_closure,
+            'not_contains': self._condition_closure,
+            'starts_with': self._condition_closure,
+            'ends_with': self._condition_closure,
+            'greater_than': self._condition_closure,
+            'less_than': self._condition_closure,
+        }
+        self.accepted_cond_ops = self.condition_operator.keys()
+        self.append_operator = False
+        self.simple_query = True
+        self.data = module.params['query']
+
+    def _condition_closure(self, cond, query_field, query_value):
+        self.qb.field(query_field)
+        getattr(self.qb, cond)(query_value)
+
+    def _iterate_fields(self, data, logic_op, cond_op):
+        if isinstance(data, dict):
+            for query_field, query_value in data.items():
+                if self.append_operator:
+                    getattr(self.qb, logic_op)()
+                self.condition_operator[cond_op](cond_op, query_field, query_value)
+                self.append_operator = True
+        else:
+            self.module.fail_json(msg='Query is not in a supported format')
+
+    def _iterate_conditions(self, data, logic_op):
+        if isinstance(data, dict):
+            for cond_op, fields in data.items():
+                if (cond_op in self.accepted_cond_ops):
+                    self._iterate_fields(fields, logic_op, cond_op)
+                else:
+                    self.module.fail_json(msg='Supported conditions: {0}'.format(str(self.condition_operator.keys())))
+        else:
+            self.module.fail_json(msg='Supported conditions: {0}'.format(str(condition_operator.keys())))
+
+    def _iterate_operators(self, data):
+        if isinstance(data, dict):
+            for logic_op, cond_op in data.items():
+                if (logic_op in self.logic_operators):
+                    self.simple_query = False
+                    self._iterate_conditions(cond_op, logic_op)
+                elif self.simple_query:
+                    self.condition_operator['equals']('equals', logic_op, cond_op)
+                    break
+                else:
+                    self.module.fail_json(msg='Query is not in a supported format')
+        else:
+            self.module.fail_json(msg='Supported operators: {0}'.format(str(self.logic_operators)))
+
+    def build_query(self):
+        self.qb = pysnow.QueryBuilder()
+        self._iterate_operators(self.data)
+        return (self.qb)
 
 
 def run_module():
@@ -114,8 +205,7 @@ def run_module():
         username=dict(default=None, type='str', required=True, no_log=True),
         password=dict(default=None, type='str', required=True, no_log=True),
         table=dict(type='str', required=False, default='incident'),
-        query_field=dict(default=None, type='str', required=True),
-        query_string=dict(default=None, type='str', required=True),
+        query=dict(default=None, type='dict', required=True),
         max_records=dict(default=20, type='int', required=False),
         order_by=dict(default='-created_on', type='str', required=False),
         return_fields=dict(default=None, type='list', required=False)
@@ -134,8 +224,7 @@ def run_module():
         changed=False,
         instance=module.params['instance'],
         table=module.params['table'],
-        query_field=module.params['query_field'],
-        query_string=module.params['query_string'],
+        query=module.params['query'],
         max_records=module.params['max_records'],
         return_fields=module.params['return_fields']
     )
@@ -149,8 +238,10 @@ def run_module():
         module.fail_json(msg='Could not connect to ServiceNow: {0}'.format(str(detail)), **result)
 
     try:
+        bq = BuildQuery(module)
+        qb = bq.build_query()
         record = conn.query(table=module.params['table'],
-                            query={module.params['query_field']: module.params['query_string']})
+                            query=qb)
         if module.params['return_fields'] is not None:
             res = record.get_multiple(fields=module.params['return_fields'],
                                       limit=module.params['max_records'],
@@ -158,9 +249,13 @@ def run_module():
         else:
             res = record.get_multiple(limit=module.params['max_records'],
                                       order_by=[module.params['order_by']])
-        result['record'] = list(res)
-    except Exception as detail:
+    except:
         module.fail_json(msg='Failed to find record: {0}'.format(str(detail)), **result)
+
+    try:
+        result['record'] = list(res)
+    except NoResults:
+        result['record'] = []
 
     module.exit_json(**result)
 
