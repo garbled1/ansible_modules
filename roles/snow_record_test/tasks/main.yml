@@ -2,10 +2,10 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     table: sc_task
     lookup_field: number
-    number: SCTASK0010002
+    number: SCTASK0010001
     state: present
   tags: test
   register: mytask
@@ -14,10 +14,10 @@
   snow_record_find:
     username:  ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     table: cmdb_ci_linux_server
-    query_field: os
-    query_string: 'Linux Red Hat'
+    query:
+      os: 'Linux Red Hat'
     return_fields:
       - sys_id
   tags: test
@@ -27,7 +27,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     table: task_ci
     state: present
     data:
@@ -41,20 +41,20 @@
   snow_record_find:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     table: task_ci
-    query_field: sys_id
-    query_string: 2d8723d9db6c4300c791fe1ebf961941
+    query:
+      sys_id: 2d8723d9db6c4300c791fe1ebf961941
   tags: test
 
 - name: Search for incident assigned to group, return specific fields
   snow_record_find:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     table: incident
-    query_field: assignment_group
-    query_string: d625dccec0a8016700a222a0f7900d06
+    query:
+      assignment_group: d625dccec0a8016700a222a0f7900d06
     return_fields:
       - number
       - opened_at
@@ -64,7 +64,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     state: present
     number: 62826bf03710200044e0bfc8bcbe5df1
     table: sys_user
@@ -74,7 +74,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     state: present
     data:
       short_description: "This is a test incident opened by Ansible"
@@ -86,7 +86,7 @@
   snow_record:
     username: admin
     password: ADMINPASS
-    instance: dev38191
+    instance: dev39445
     state: absent
     number: "{{new_incident['record']['number']}}"
   tags: hi
@@ -97,7 +97,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     state: absent
     number: 9872354
   failed_when: false
@@ -106,7 +106,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     state: present
     number: INC0000055
     data:
@@ -116,7 +116,7 @@
   snow_record:
     username: ansible_test
     password: my_password
-    instance: dev38191
+    instance: dev39445
     state: present
     number: INC0000055
     attachment: README.md

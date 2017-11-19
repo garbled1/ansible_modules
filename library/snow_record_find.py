@@ -175,7 +175,7 @@ class BuildQuery(object):
                 else:
                     self.module.fail_json(msg='Supported conditions: {0}'.format(str(self.condition_operator.keys())))
         else:
-            self.module.fail_json(msg='Supported conditions: {0}'.format(str(condition_operator.keys())))
+            self.module.fail_json(msg='Supported conditions: {0}'.format(str(self.condition_operator.keys())))
 
     def _iterate_operators(self, data):
         if isinstance(data, dict):

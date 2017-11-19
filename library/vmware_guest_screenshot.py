@@ -74,7 +74,7 @@ EXAMPLES = r'''
 RETURN = r''' # '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.vmware import PyVmomi, vmware_argument_spec, wait_for_task
+from ansible.module_utils.vmware import PyVmomi, vmware_argument_spec, wait_for_task, vim
 
 
 def screenshot_vm(vm):
