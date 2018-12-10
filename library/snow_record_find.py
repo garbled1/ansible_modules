@@ -122,11 +122,12 @@ from ansible.module_utils.basic import AnsibleModule
 HAS_PYSNOW = False
 try:
     import pysnow
+    from pysnow.legacy_exceptions import NoResults as LegacyNoResults
     from pysnow.exceptions import NoResults
     HAS_PYSNOW = True
 
 except ImportError:
-    pass
+   pass
 
 
 class BuildQuery(object):
@@ -249,13 +250,18 @@ def run_module():
         else:
             res = record.get_multiple(limit=module.params['max_records'],
                                       order_by=[module.params['order_by']])
-    except:
+    except Exception as detail:
         module.fail_json(msg='Failed to find record: {0}'.format(str(detail)), **result)
 
     try:
         result['record'] = list(res)
     except NoResults:
-        result['record'] = []
+        result['record'] = list()
+    except LegacyNoResults:
+        result['record'] = list()
+
+    if len(result['record']) == 0:
+        result['record'] = list()
 
     module.exit_json(**result)
 
